@@ -1,8 +1,3 @@
 # robot_control
 
-Your description goes here
-
-## Example usage
-
-## Running tests/demos
-    
+a ROS node for controlling a 4DOF arm robot
