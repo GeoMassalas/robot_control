@@ -3,6 +3,7 @@
 #include <i2cpwm_board/ServoArray.h>
 #include <i2cpwm_board/Servo.h>
 #include <std_srvs/Empty.h>
+#include <algorithm>
 
 /*      Range of servos
     Servo 1 is the base 
@@ -20,8 +21,12 @@ static const float SERVO2_MIN = 220;
 static const float SERVO3_MAX = 410;
 static const float SERVO3_MIN = 220;
 
-static const float GRIPPER_OPEN = 420;
-static const float GRIPPER_CLOSED = 100;
+static const float GRIPPER_MAX = 420;
+static const float GRIPPER_MIN = 250;
+
+static const float SERVO1_INIT = 420;
+static const float SERVO2_INIT = 225;
+static const float SERVO3_INIT = 305;
 
 // Joystick Controller class
 class Joystick_Controller {
@@ -30,13 +35,14 @@ class Joystick_Controller {
     ros::Publisher servo_out_;
     ros::ServiceClient client;
     int buttons[9];
-    float gripper_value;
     float servo1_value;
     float servo2_value;
     float servo3_value;
+    float servo_gripper_value;
     float servo1_change;
     float servo2_change;
     float servo3_change;
+    float servo_gripper_change;
     
 
 public:
@@ -50,12 +56,17 @@ public:
         servo_out_ = nh_.advertise<i2cpwm_board::ServoArray>("/servos_absolute", 10);
 
         // initial values for servos
-        this->servo1_value = 320;
-        this->servo2_value = 320;
-        this->servo3_value = 320;
-        this->servo1_change = 5;
-        this->servo2_change = 5;
-        this->servo3_change = 5;
+        this->servo1_value = SERVO1_INIT;
+        this->servo2_value = SERVO2_INIT;
+        this->servo3_value = SERVO3_INIT;
+        this->servo_gripper_value = 260;
+        this->servo1_change = 1;
+        this->servo2_change = 1;
+        this->servo3_change = 1;
+        this->servo_gripper_change = 2;
+        std::fill_n(this->buttons, 9, -1);
+        std_srvs::Empty empty;
+        client.call(empty);
     }
     // insert the button values in an array and determine the position of the gripper
     void input_btn(const sensor_msgs::Joy& msg) {
@@ -98,12 +109,12 @@ public:
             this->servo3_value += servo3_change;
             servo_pub_(9, servo3_value, SERVO3_MIN, SERVO3_MAX);
         }else if(this->buttons[1] == 1){
-            this->gripper_value = GRIPPER_CLOSED;
-            servo_pub_(13, gripper_value, GRIPPER_CLOSED, GRIPPER_OPEN);
+            this->servo_gripper_value += servo_gripper_change;
+            servo_pub_(13, servo_gripper_value, GRIPPER_MIN, GRIPPER_MAX);
         }else if(this->buttons[0] == 1)
         {
-            this->gripper_value = GRIPPER_OPEN;
-            servo_pub_(13, gripper_value, GRIPPER_CLOSED, GRIPPER_OPEN);
+            this->servo_gripper_value -= servo_gripper_change;
+            servo_pub_(13, servo_gripper_value, GRIPPER_MIN, GRIPPER_MAX);
         }else if(this->buttons[8] == 1)
         {
             std_srvs::Empty empty;
@@ -124,6 +135,8 @@ public:
         srv.value = value;
         array.servos.push_back(srv);
         servo_out_.publish(array);
+        // Debug msg
+        ROS_INFO("Servo No: %d  Value: %f", srv.servo, srv.value);
     }
 
 }; // end of class definition
@@ -134,7 +147,7 @@ int main(int argc, char **argv)
     ros::init(argc, argv, "joystick_controller");
     ros::NodeHandle n;
     Joystick_Controller jc(n);
-    ros::Duration timer(0.05);
+    ros::Duration timer(0.01);
     while (ros::ok())
     {
         ros::spinOnce();
